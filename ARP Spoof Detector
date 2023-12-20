@@ -1,43 +1,47 @@
+# Importing necessary modules
 import os
+import re
 import datetime
 
-def arp_table_extraction():
-    # Step 1: Run the 'arp -a' command to get ARP table data
-    arp_table = os.popen("arp -a").read()
-    # Step 2: Split the output into lines
-    arp_table_lines = arp_table.splitlines()
-    # Step 3: Filter out unnecessary lines and store IP-MAC pairs
-    addresses = {}
-    for line in arp_table_lines:
-    # Filter out lines that don't contain IP-MAC pairs
-    if "ff-ff-ff-ff-ff-ff" in line or "ff:ff:ff:ff:ff:ff" in line:
-        break
-    if arp_table_lines.index(line) > 2:
-        ip, mac, -type = line_split()
-        addresses[ip] = mac
+def extract_arp_table():
+    # Use os.popen() to execute a shell command in Python
+    arp_table = os.popen('arp -a').read()
 
-    identify_duplication(addresses)
+    # Split the ARP table into lines
+    arp_lines = arp_table.split('\n')
 
+    # Create a dictionary to store the final filtered data
+    filtered_data = {}
 
-def identify_duplication(addresses):
-    tmp_mac_lst = []
-    print("Scanning...")
-    time.sleep(3)
-    for mac in addresses.values():
-        if mac in tmp_mac_lst:
-            print("Finished Scanning")
-            create_log("ARP spoofed: \n The address is: " + mac)
-            break
-        tmp_mac_lst.append(mac)
+    # Regular expression pattern for IP and MAC addresses
+    pattern = r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+(\w\w-\w\w-\w\w-\w\w-\w\w-\w\w)"
 
+    for line in arp_lines:
+        # Find matches
+        matches = re.findall(pattern, line)
 
-def create_log(message):
-    print("Generating logs...")
-    time.sleep(3)
-    date = datetime.datetime.now()
-    with open("log.txt", "a") as log:
-        log.write(message + "\nDate: {}\n\n".format(date))
-        print("the event is logged")
+        # If a match is found
+        if matches:
+            ip, mac = matches[0]
+            # Check if MAC address is already in the dictionary
+            if mac in filtered_data:
+                filtered_data[mac].append(ip)
+            else:
+                filtered_data[mac] = [ip]
+
+    return filtered_data
+
+def identify_mac_duplication(filtered_data):
+    for mac, ips in filtered_data.items():
+        if len(ips) > 1:
+            print(f"Potential ARP Spoofing detected: MAC address {mac} is associated with multiple IP addresses: {ips}")
+            log_event(mac, ips)
+
+def log_event(mac, ips):
+    timestamp = datetime.datetime.now()
+    with open('arp_spoofing_log.txt', 'a') as f:
+        f.write(f"{timestamp}: Potential ARP Spoofing detected: MAC address {mac} is associated with multiple IP addresses: {ips}\n")
 
 if __name__ == "__main__":
-    arp_table_extraction()
+    arp_table = extract_arp_table()
+    identify_mac_duplication(arp_table)
